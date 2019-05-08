@@ -1,0 +1,22 @@
+hash: 265705b23358920f1fe8ec41a697fc140190518c95432d8f7a310eff74c56162
+updated: 2019-05-08T18:05:08.0126215+02:00
+imports:
+- name: github.com/Azure/azure-pipeline-go
+  version: b8e3409182fd52e74f7d7bdfbff5833591b3b655
+  subpackages:
+  - pipeline
+- name: github.com/Azure/azure-storage-blob-go
+  version: 457680cc0804810f6d02958481e0ffdda51d5c60
+  subpackages:
+  - azblob
+- name: github.com/fsnotify/fsnotify
+  version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
+- name: github.com/mattetti/filebuffer
+  version: dcb943334ad8fcc158b4ab408c2ba17d050838c3
+- name: github.com/pkg/errors
+  version: 059132a15dd08d6704c67711dae0cf35ab991756
+- name: golang.org/x/sys
+  version: 9b800f95dbbc54abff0acf7ee32d88ba4e328c89
+  subpackages:
+  - unix
+testImports: []

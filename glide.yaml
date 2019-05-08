@@ -6,3 +6,7 @@ import:
   - azblob
 - package: github.com/Azure/azure-pipeline-go
   version: v0.1.8
+- package: github.com/fsnotify/fsnotify
+  version: ^1.4.7
+- package: github.com/mattetti/filebuffer
+  version: ^1.0.0
