@@ -1,9 +1,21 @@
 
 # `chgeuer/go_hotfolder_azure` - A hotfolder synchronizer
 
-Purpose of this utility is to run on a VM, monitor a local (hot) folder, and synchronize files between that folder and an Azure storage container. 
+Purpose of this utility is to run on a VM, monitor a local (hot) folder, and synchronize files between that folder and an Azure storage container.
 
 ## Research pieces
+
+### Check open file handle
+
+Given the use of `lsof`, this restricts the project to Linux. 
+
+```bash
+#!/bin/bash
+
+lsof -t foo.txt
+```
+
+Gives me the process ID *if* there's currently a writing process to that file.
 
 ### File system watchers
 
