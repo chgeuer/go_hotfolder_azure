@@ -1,0 +1,8 @@
+package: github.com/chgeuer/go_hotfolder_azure
+import:
+- package: github.com/pkg/errors
+- package: github.com/Azure/azure-storage-blob-go
+  subpackages:
+  - azblob
+- package: github.com/Azure/azure-pipeline-go
+  version: v0.1.8
