@@ -6,10 +6,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log"
-	"net/url"
+	"sync"
+
+	// "log"
+	// "net/url"
 	"os"
 	"os/exec"
+
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -19,6 +22,8 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/mattetti/filebuffer"
 	"github.com/pkg/errors"
+	"github.com/reactivex/rxgo"
+	"github.com/reactivex/rxgo/handlers"
 )
 
 const (
@@ -31,95 +36,183 @@ const (
 	environmentVariableNameStorageAccountKey  = "SAMPLE_STORAGE_ACCOUNT_KEY"
 )
 
-func main() {
+type fileSystemEvent struct {
+	path      string
+	operation fsnotify.Op
+	isDir     bool
+	exists    bool
+	time      time.Time
+}
 
-	for {
-		filename := "1.mkv"
-		if isLocked, pid := fileIsLockedByOtherProcess(filename); isLocked {
-			fmt.Printf("%s locked by %d\n", filename, pid)
-		} else {
-			fmt.Printf("%s not locked\n", filename)
-		}
+func (fse fileSystemEvent) DirectoryCreated() bool {
+	return fse.exists && fse.isDir && fse.operation == fsnotify.Create
+}
+
+func (fse fileSystemEvent) Removed() bool {
+	return !fse.exists && fse.operation == fsnotify.Remove
+}
+
+func existsIsDir(path string) (exists bool, isDir bool, err error) {
+	fileInfo, err := os.Stat(path)
+	if err == nil {
+		exists = true
+		isDir = fileInfo.Mode().IsDir()
+		return
 	}
 
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		fmt.Println("ERROR", err)
+	exists = os.IsNotExist(err)
+	isDir = false
+	return
+}
+
+func getObervableFsNotifyWatcher(watchFolder string) (rxgo.Observable, error) {
+	basePath, _ := filepath.Abs(watchFolder)
+
+	fsWatcher, e := fsnotify.NewWatcher()
+	if e != nil {
+		return nil, e
 	}
-	defer watcher.Close()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		wg.Wait()
+		fsWatcher.Close()
+	}()
 
 	watch := func(path string, fi os.FileInfo, err error) error {
 		if fi.Mode().IsDir() {
-			return watcher.Add(path)
+			path, _ = filepath.Abs(path)
+			return fsWatcher.Add(path)
 		}
 		return nil
 	}
 
-	watchFolder := "."
-
-	if err := filepath.Walk(watchFolder, watch); err != nil {
-		fmt.Println("ERROR", err)
+	if e := filepath.Walk(basePath, watch); e != nil {
+		return nil, e
 	}
-	done := make(chan bool)
+
+	fileSystemEventsChannel := make(chan interface{})
+	source := rxgo.FromEventSource(fileSystemEventsChannel)
+	source.Subscribe(rxgo.NewObserver(
+		handlers.NextFunc(func(item interface{}) {
+			fse := item.(fileSystemEvent)
+			if fse.DirectoryCreated() {
+				fsWatcher.Add(fse.path)
+			}
+			if fse.Removed() {
+				fsWatcher.Remove(fse.path)
+			}
+		}),
+		handlers.ErrFunc(func(err error) {}),
+		handlers.DoneFunc(func() { wg.Done() }),
+	))
 
 	go func() {
 		for {
 			select {
-			// watch for events
-			case event := <-watcher.Events:
-				fmt.Printf("EVENT! %s %s\n", event.Name, event.Op)
+			case event := <-fsWatcher.Events:
+				absPath, _ := filepath.Abs(event.Name)
+				relPath, _ := filepath.Rel(basePath, absPath)
+				exists, isDir, _ := existsIsDir(absPath)
 
-				// watch for errors
-			case err := <-watcher.Errors:
-				fmt.Println("ERROR", err)
+				fileSystemEventsChannel <- fileSystemEvent{
+					path:      relPath,
+					operation: event.Op,
+					isDir:     isDir,
+					exists:    exists,
+					time:      time.Now(),
+				}
+			case err := <-fsWatcher.Errors:
+				fileSystemEventsChannel <- err
 			}
 		}
 	}()
 
-	var (
-		storageAccountName = os.Getenv(environmentVariableNameStorageAccountName)
-		storageAccountKey  = os.Getenv(environmentVariableNameStorageAccountKey)
-		containerName      = "ocirocks3"
-		blobName           = "20181007-110205-L1016848.jpg"
-	)
+	return source, nil
+}
 
-	sharedKeyCredential, e := a.NewSharedKeyCredential(storageAccountName, storageAccountKey)
+func main() {
+	fmt.Println("Running")
+
+	fileSystemChangeObservable, e := getObervableFsNotifyWatcher(".")
 	if e != nil {
-		log.Fatal(e)
-		return
-	}
-	pipeline := a.NewPipeline(sharedKeyCredential, a.PipelineOptions{
-		Retry: a.RetryOptions{
-			Policy:     a.RetryPolicyExponential,
-			MaxTries:   maxRetries,
-			RetryDelay: retryDelay,
-		}})
-
-	url, e := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net", storageAccountName))
-	if e != nil {
-		log.Fatal(e)
+		fmt.Println(e)
 		return
 	}
 
-	serviceURL := a.NewServiceURL(*url, pipeline)
-	containerURL := serviceURL.NewContainerURL(containerName)
-	blobURL := containerURL.NewBlockBlobURL(blobName)
+	fileSystemChangeObservable.Filter(func(item interface{}) bool {
+		fse := item.(fileSystemEvent)
+		return fse.operation == fsnotify.Create || fse.operation == fsnotify.Remove
+	}).Map(func(item interface{}) interface{} {
+		fse := item.(fileSystemEvent)
+		return fmt.Sprintf("Next %s %v\n", fse.path, fse.operation.String())
+	}).Subscribe(rxgo.NewObserver(
+		handlers.NextFunc(func(item interface{}) {
+			fmt.Printf(item.(string))
+		}),
+		handlers.ErrFunc(func(err error) {
+			fmt.Printf("Error %v\n", err)
+		}),
+		handlers.DoneFunc(func() {
+			fmt.Println("Done")
+		}),
+	))
 
-	ctx := context.Background()
+	<-make(chan interface{})
 
-	fmt.Println("Start Download")
-	if e := download(ctx, blobURL, blobName); e != nil {
-		log.Fatal(e)
-		return
-	}
+	// for {
+	// 	filename := "1.mkv"
+	// 	if isLocked, pid := fileIsLockedByOtherProcess(filename); isLocked {
+	// 		fmt.Printf("%s locked by %d\n", filename, pid)
+	// 	} else {
+	// 		fmt.Printf("%s not locked\n", filename)
+	// 	}
+	// }
 
-	fmt.Println("Start Upload")
-	if e := upload(ctx, blobURL, blobName); e != nil {
-		log.Fatal(e)
-	}
+	// var (
+	// 	storageAccountName = os.Getenv(environmentVariableNameStorageAccountName)
+	// 	storageAccountKey  = os.Getenv(environmentVariableNameStorageAccountKey)
+	// 	containerName      = "ocirocks3"
+	// 	blobName           = "20181007-110205-L1016848.jpg"
+	// )
 
-	fmt.Println("Done")
-	<-done
+	// sharedKeyCredential, e := a.NewSharedKeyCredential(storageAccountName, storageAccountKey)
+	// if e != nil {
+	// 	log.Fatal(e)
+	// 	return
+	// }
+	// pipeline := a.NewPipeline(sharedKeyCredential, a.PipelineOptions{
+	// 	Retry: a.RetryOptions{
+	// 		Policy:     a.RetryPolicyExponential,
+	// 		MaxTries:   maxRetries,
+	// 		RetryDelay: retryDelay,
+	// 	}})
+
+	// url, e := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net", storageAccountName))
+	// if e != nil {
+	// 	log.Fatal(e)
+	// 	return
+	// }
+
+	// serviceURL := a.NewServiceURL(*url, pipeline)
+	// containerURL := serviceURL.NewContainerURL(containerName)
+	// blobURL := containerURL.NewBlockBlobURL(blobName)
+
+	// ctx := context.Background()
+
+	// fmt.Println("Start Download")
+	// if e := download(ctx, blobURL, blobName); e != nil {
+	// 	log.Fatal(e)
+	// 	return
+	// }
+
+	// fmt.Println("Start Upload")
+	// if e := upload(ctx, blobURL, blobName); e != nil {
+	// 	log.Fatal(e)
+	// }
+
+	// fmt.Println("Done")
 }
 
 func download(ctx context.Context, blobURL a.BlockBlobURL, fileName string) error {

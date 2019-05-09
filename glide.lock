@@ -1,5 +1,5 @@
-hash: 265705b23358920f1fe8ec41a697fc140190518c95432d8f7a310eff74c56162
-updated: 2019-05-08T18:05:08.0126215+02:00
+hash: 6ee27f5166781701e816e4e92c04947742b3c897c68e02a4ab0aa1e835b2c466
+updated: 2019-05-10T04:22:11.0673556-07:00
 imports:
 - name: github.com/Azure/azure-pipeline-go
   version: b8e3409182fd52e74f7d7bdfbff5833591b3b655
@@ -9,12 +9,40 @@ imports:
   version: 457680cc0804810f6d02958481e0ffdda51d5c60
   subpackages:
   - azblob
+- name: github.com/davecgh/go-spew
+  version: d8f796af33cc11cb798c1aaeb27a4ebc5099927d
+  subpackages:
+  - spew
 - name: github.com/fsnotify/fsnotify
   version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
 - name: github.com/mattetti/filebuffer
   version: dcb943334ad8fcc158b4ab408c2ba17d050838c3
 - name: github.com/pkg/errors
   version: 059132a15dd08d6704c67711dae0cf35ab991756
+- name: github.com/pmezard/go-difflib
+  version: 5d4384ee4fb2527b0a1256a821ebfc92f91efefc
+  subpackages:
+  - difflib
+- name: github.com/reactivex/rxgo
+  version: d24857e518fc8bccf1a9e5b31220fbcb876612ef
+  subpackages:
+  - handlers
+  - options
+- name: github.com/stretchr/objx
+  version: 35313a95ee26395aa17d366c71a2ccf788fa69b6
+- name: github.com/stretchr/testify
+  version: ffdc059bfe9ce6a4e144ba849dbedead332c6053
+  subpackages:
+  - assert
+  - mock
+- name: golang.org/x/net
+  version: c10e9556a7bc0e7c942242b606f0acf024ad5d6a
+  subpackages:
+  - context
+- name: golang.org/x/sync
+  version: 1d60e4601c6fd243af51cc01ddf169918a5407ca
+  subpackages:
+  - semaphore
 - name: golang.org/x/sys
   version: 9b800f95dbbc54abff0acf7ee32d88ba4e328c89
   subpackages:

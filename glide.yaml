@@ -10,3 +10,12 @@ import:
   version: ^1.4.7
 - package: github.com/mattetti/filebuffer
   version: ^1.0.0
+- package: github.com/reactivex/rxgo
+  version: d24857e518fc8bccf1a9e5b31220fbcb876612ef
+- package: golang.org/x/sync
+  subpackages:
+  - semaphore
+- package: github.com/stretchr/testify
+  version: ^1.3.0
+  subpackages:
+  - assert
